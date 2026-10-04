@@ -64,6 +64,7 @@ footer{text-align:center;color:var(--mut);padding:18px 14px 90px;font-size:14px}
 .brand .so{height:clamp(22px,6vw,32px);width:auto}
 .brand img{filter:drop-shadow(0 2px 5px rgba(0,0,0,.55))}
 .tel{display:flex;gap:6px;margin-top:4px}.tel select{width:98px;flex:none;margin-top:0}.tel input{margin-top:0;min-width:0}
+.pv{display:none;width:96px;height:96px;object-fit:cover;border-radius:8px;margin-top:8px;border:2px solid var(--red)}input[type=file]{padding:8px;font-size:15px}
 </style>
 </head>
 <body>
@@ -136,6 +137,7 @@ let rn=null;try{rn=new Intl.DisplayNames(['en'],{type:'region'})}catch(e){}
 const CN=DIAL.map(([c,d])=>({c,d,n:(rn&&rn.of(c))||c})).sort((a,b)=>a.n.localeCompare(b.n));
 const NATOPTS='<option value="">Select country</option>'+CN.map(x=>`<option>${x.n}</option>`).join('');
 const DIALOPTS=CN.map(x=>`<option value="${x.d}"${x.c==='LK'?' selected':''}>${x.c} +${x.d}</option>`).join('');
+const shrink=f=>new Promise((ok,no)=>{if(!f)return no();const u=URL.createObjectURL(f),i=new Image();i.onload=()=>{const m=700,s=Math.min(1,m/Math.max(i.width,i.height)),c=document.createElement('canvas');c.width=Math.round(i.width*s);c.height=Math.round(i.height*s);c.getContext('2d').drawImage(i,0,0,c.width,c.height);URL.revokeObjectURL(u);ok(c.toDataURL('image/jpeg',.72))};i.onerror=no;i.src=u});
 function card(n){
   const d=document.createElement('div');d.className='driver';
   d.innerHTML=`<h3>DRIVER <span class="n">${n}</span></h3><button type="button" class="rm">Remove</button>
@@ -148,7 +150,10 @@ function card(n){
   <label>Telephone Number<div class="tel"><select class="dial" data-dial title="Country code">${DIALOPTS}</select><input data-k="Tel" type="tel" inputmode="tel" placeholder="771234567" required></div></label>
   <label>Nationality<select data-k="Nationality" required>${NATOPTS}</select></label>
   <label>T-Shirt Size<select data-k="T-Shirt" required>${opts(['XS','S','M','L','XL','2XL','3XL'])}</select></label>
+  <label>Driver Photo (face clearly visible)<input type="file" accept="image/*" data-photo><img class="pv" alt=""></label>
   </div>`;
+  const fi=d.querySelector('[data-photo]');
+  fi.onchange=()=>shrink(fi.files[0]).then(u=>{d._photo=u;const v=d.querySelector('.pv');v.src=u;v.style.display='block'}).catch(()=>{d._photo=null;d.querySelector('.pv').style.display='none'});
   d.querySelector('.rm').onclick=()=>{if(cards().length>MIN){d.remove();sync()}};
   return d;
 }
@@ -170,15 +175,17 @@ $('#f').onsubmit=e=>{
   const f=e.target,err=$('#err');err.textContent='';
   const bad=[...f.querySelectorAll('[required]')].find(x=>!x.value.trim());
   if(bad){bad.focus();err.textContent='Please fill in all required fields.';return}
+  const nop=cards().findIndex(c=>!c._photo);
+  if(nop>-1){err.textContent='Please add a photo for Driver '+(nop+1)+'.';cards()[nop].scrollIntoView({behavior:'smooth',block:'center'});return}
   if(!f.querySelector('[name=mmail]').checkValidity()){err.textContent='Enter a valid manager e-mail.';return}
   if(f.decl.value!=='Agree'||f.cons.value!=='Agree'){err.textContent='You must select "Agree" on both the declaration and the PDPA consent to enter.';return}
   const fd=new FormData(f);
   let t=`SPEEDBAY 24 HOURS ENDURANCE CHALLENGE - ENTRY\n\nTeam: ${fd.get('team')}\nDrivers: ${cards().length}\n`;
-  cards().forEach((c,i)=>{t+=`\nDriver ${i+1}\n`;Object.entries(drv(c)).forEach(([k,v])=>t+=`  ${k}: ${v}\n`)});
+  cards().forEach((c,i)=>{t+=`\nDriver ${i+1}\n`;Object.entries(drv(c)).forEach(([k,v])=>t+=`  ${k}: ${v}\n`);t+='  Photo: attached\n'});
   t+=`\nTeam Manager\n  Name: ${fd.get('mname')}\n  Tel: ${('+'+fd.get('mdial')+' '+fd.get('mtel').trim())}\n  E-mail: ${fd.get('mmail')}\n  NIC/Passport: ${fd.get('mnic')}\n  Nationality: ${fd.get('mnat')}\n\nDeclaration: ${fd.get('decl')}\nPDPA Consent: ${fd.get('cons')}\nSubmitted: ${new Date().toLocaleString()}`;
   const o=$('#out');o.textContent=t;o.style.display='block';$('#copy').style.display='inline-block';o.scrollIntoView({behavior:'smooth'});
   const payload={team:fd.get('team'),mname:fd.get('mname'),mtel:('+'+fd.get('mdial')+' '+fd.get('mtel').trim()),mmail:fd.get('mmail'),mnic:fd.get('mnic'),mnat:fd.get('mnat'),decl:fd.get('decl'),cons:fd.get('cons'),
-    drivers:cards().map(drv)};
+    drivers:cards().map(c=>Object.assign(drv(c),{Photo:c._photo||''}))};
   const btn=f.querySelector('button[type=submit]');
   if(!/^https:/.test(SHEET_URL)){err.style.color='#5fd0ff';err.textContent='Summary ready (online submission is not configured yet).';return}
   btn.disabled=true;btn.textContent='Sending...';
