@@ -67,6 +67,7 @@ footer{text-align:center;color:var(--mut);padding:18px 14px 90px;font-size:14px}
 .pv{display:none;width:96px;height:96px;object-fit:cover;border-radius:8px;margin-top:8px;border:2px solid var(--red)}input[type=file]{padding:8px;font-size:15px}
 .hint{display:block;font-weight:500;font-size:14px;color:var(--yel);margin-top:4px;line-height:1.25}
 .fee{font-family:'Orbitron',sans-serif;font-weight:800;font-size:clamp(22px,6vw,30px);color:var(--yel)}.fee small{font-size:.5em;color:var(--mut);letter-spacing:2px}
+#tlv{object-fit:contain;background:#fff}
 </style>
 </head>
 <body>
@@ -86,6 +87,7 @@ footer{text-align:center;color:var(--mut);padding:18px 14px 90px;font-size:14px}
     <div class="grid">
       <label>Team Name<input name="team" required></label>
       <label>Number of Drivers<select id="count"></select></label>
+      <label>Team Logo (optional)<input type="file" accept="image/png,image/jpeg,image/webp" id="tlogo"><span class="hint">Optional: upload your team logo (PNG or JPG). You can submit without it.</span><img class="pv" id="tlv" alt=""></label>
     </div>
   </fieldset>
 
@@ -142,7 +144,7 @@ let rn=null;try{rn=new Intl.DisplayNames(['en'],{type:'region'})}catch(e){}
 const CN=DIAL.map(([c,d])=>({c,d,n:(rn&&rn.of(c))||c})).sort((a,b)=>a.n.localeCompare(b.n));
 const NATOPTS='<option value="">Select country</option>'+CN.map(x=>`<option>${x.n}</option>`).join('');
 const DIALOPTS=CN.map(x=>`<option value="${x.d}"${x.c==='LK'?' selected':''}>${x.c} +${x.d}</option>`).join('');
-const shrink=f=>new Promise((ok,no)=>{if(!f)return no();const u=URL.createObjectURL(f),i=new Image();i.onload=()=>{const m=700,s=Math.min(1,m/Math.max(i.width,i.height)),c=document.createElement('canvas');c.width=Math.round(i.width*s);c.height=Math.round(i.height*s);c.getContext('2d').drawImage(i,0,0,c.width,c.height);URL.revokeObjectURL(u);ok(c.toDataURL('image/jpeg',.72))};i.onerror=no;i.src=u});
+const shrink=f=>new Promise((ok,no)=>{if(!f)return no();const u=URL.createObjectURL(f),i=new Image();i.onload=()=>{const m=700,s=Math.min(1,m/Math.max(i.width,i.height)),c=document.createElement('canvas');c.width=Math.round(i.width*s);c.height=Math.round(i.height*s);const x=c.getContext('2d');x.fillStyle='#fff';x.fillRect(0,0,c.width,c.height);x.drawImage(i,0,0,c.width,c.height);URL.revokeObjectURL(u);ok(c.toDataURL('image/jpeg',.72))};i.onerror=no;i.src=u});
 function card(n){
   const d=document.createElement('div');d.className='driver';
   d.innerHTML=`<h3>DRIVER <span class="n">${n}</span></h3><button type="button" class="rm">Remove</button>
@@ -174,6 +176,8 @@ $('#add').onclick=()=>{if(cards().length<MAX)setCount(cards().length+1)};
 setCount(MIN);
 
 document.querySelector('select.dial[name=mdial]').innerHTML=DIALOPTS;document.querySelector('select.nat').innerHTML=NATOPTS;
+let TL=null;
+$('#tlogo').onchange=()=>shrink($('#tlogo').files[0]).then(u=>{TL=u;$('#tlv').src=u;$('#tlv').style.display='block'}).catch(()=>{TL=null;$('#tlv').style.display='none'});
 let MPH=null;
 $('#mph').onchange=()=>shrink($('#mph').files[0]).then(u=>{MPH=u;$('#mpv').src=u;$('#mpv').style.display='block'}).catch(()=>{MPH=null;$('#mpv').style.display='none'});
 const drv=c=>{const r={};c.querySelectorAll('[data-k]').forEach(x=>r[x.dataset.k]=x.value);r.Tel='+'+c.querySelector('[data-dial]').value+' '+r.Tel.trim();return r};
@@ -188,11 +192,11 @@ $('#f').onsubmit=e=>{
   if(!f.querySelector('[name=mmail]').checkValidity()){err.textContent='Enter a valid manager e-mail.';return}
   if(f.decl.value!=='Agree'||f.cons.value!=='Agree'){err.textContent='You must select "Agree" on both the declaration and the PDPA consent to enter.';return}
   const fd=new FormData(f);
-  let t=`SPEEDBAY 24 HOUR ENDURANCE CHALLENGE - ENTRY\n\nTeam: ${fd.get('team')}\nDrivers: ${cards().length}\n`;
+  let t=`SPEEDBAY 24 HOUR ENDURANCE CHALLENGE - ENTRY\n\nTeam: ${fd.get('team')}\nDrivers: ${cards().length}\n${TL?'Team Logo: attached\n':''}`;
   cards().forEach((c,i)=>{t+=`\nDriver ${i+1}\n`;Object.entries(drv(c)).forEach(([k,v])=>t+=`  ${k}: ${v}\n`);t+='  Photo: attached\n'});
   t+=`\nTeam Manager\n  Name: ${fd.get('mname')}\n  Tel: ${('+'+fd.get('mdial')+' '+fd.get('mtel').trim())}\n  E-mail: ${fd.get('mmail')}\n  NIC/Passport: ${fd.get('mnic')}\n  Nationality: ${fd.get('mnat')}\n  Photo: attached\n\nDeclaration: ${fd.get('decl')}\nPDPA Consent: ${fd.get('cons')}\nSubmitted: ${new Date().toLocaleString()}`;
   const o=$('#out');o.textContent=t;o.style.display='block';$('#copy').style.display='inline-block';o.scrollIntoView({behavior:'smooth'});
-  const payload={team:fd.get('team'),mname:fd.get('mname'),mtel:('+'+fd.get('mdial')+' '+fd.get('mtel').trim()),mmail:fd.get('mmail'),mnic:fd.get('mnic'),mnat:fd.get('mnat'),mphoto:MPH||'',decl:fd.get('decl'),cons:fd.get('cons'),
+  const payload={team:fd.get('team'),mname:fd.get('mname'),mtel:('+'+fd.get('mdial')+' '+fd.get('mtel').trim()),mmail:fd.get('mmail'),mnic:fd.get('mnic'),mnat:fd.get('mnat'),mphoto:MPH||'',logo:TL||'',decl:fd.get('decl'),cons:fd.get('cons'),
     drivers:cards().map(c=>Object.assign(drv(c),{Photo:c._photo||''}))};
   const btn=f.querySelector('button[type=submit]');
   if(!/^https:/.test(SHEET_URL)){err.style.color='#5fd0ff';err.textContent='Summary ready (online submission is not configured yet).';return}
